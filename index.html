@@ -93,6 +93,18 @@
         .inspect-panel button,.inspect-panel select,.inspect-panel input {background:#16323e;color:white;border:1px solid #44717e;border-radius:6px;padding:7px;min-height:36px}
         .inspect-panel {overscroll-behavior:contain; max-height:calc(100dvh - 230px)}
         .inspect-panel button:disabled {opacity:.5}.inspect-panel label {display:block;margin:8px 0}.inspect-panel input[type=range]{width:100%;padding:0}.inspect-panel .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.inspect-panel .stat{color:#7be8ec;font-weight:700}.inspect-panel small{color:#b9cbd2}.inspect-panel input[type=text]{width:100%;box-sizing:border-box}.inspect-panel .record{border-top:1px solid #41606a;padding:8px 0;overflow-wrap:anywhere}.inspect-panel img{max-width:100%;max-height:120px}
+    
+        /* Compact live view keeps the camera unobstructed by default. */
+        .hud-container {padding:12px; box-sizing:border-box; height:100dvh}
+        .scanlines {display:none}
+        .inspect-panel {position:fixed; top:auto; bottom:max(12px,env(safe-area-inset-bottom)); left:10px; right:10px; max-height:min(72dvh,600px); z-index:30; box-sizing:border-box; box-shadow:0 12px 40px #000b;}
+        .inspect-panel[hidden] {display:none!important}
+        .panel-toggle {pointer-events:auto; background:#092b38; color:white; border:1px solid #58b4c6; border-radius:10px; padding:10px 13px; font:600 13px system-ui; min-height:42px}
+        .panel-header {display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px}
+        .panel-header button {min-width:70px}
+        .compact-meter {min-width:0; max-width:calc(100vw - 130px)}
+        .spectrum-box {max-width:290px}
+        @media(max-height:450px) { .inspect-panel {max-height:82dvh} .spectrum-box canvas {height:36px} }
     </style>
 </head>
 <body>
@@ -118,30 +130,14 @@
     
 
     <div class="hud-container p-4">
-        <!-- Top HUD -->
-        <div class="flex justify-between items-start">
-            <div class="hud-element rounded-sm p-3 border-l-4 border-l-cyan-500">
-                <div class="text-[10px] text-cyan-400 font-mono tracking-widest mb-1">MIC LEVEL · dBFS (UNCALIBRATED)</div>
-                <div class="text-4xl font-bold text-green-400 font-mono transition-colors" id="db-display">--.-</div>
-                <div class="text-[10px] text-gray-400 mt-1 flex justify-between gap-4 font-mono">
-                    <span>SOUND FROM PHONE MIC</span>
-                    <span>NO LOCATION DATA</span>
-                    <span>LEAK RATE: <span id="leak-rate" class="text-yellow-400">UNAVAILABLE</span></span>
-                </div>
+        <div class="flex justify-between items-start gap-2">
+            <div class="hud-element compact-meter rounded-sm p-3 border-l-4 border-l-cyan-500">
+                <div class="text-[10px] text-cyan-400 font-mono tracking-widest">MIC LEVEL · dBFS</div>
+                <div class="text-3xl font-bold text-green-400 font-mono" id="db-display">--.-</div>
+                <div class="text-[10px] text-gray-300">Relative, uncalibrated</div>
+                <span id="leak-rate" hidden>UNAVAILABLE</span>
             </div>
-            
-            <div class="flex flex-col items-end gap-2 font-mono text-[10px] sm:text-xs">
-                <div class="bg-black/60 px-2 py-1 rounded border border-gray-600 text-green-400 flex items-center gap-2">
-                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> LIVE
-                    <span class="text-white ml-2">MONITORING</span>
-                </div>
-                <div class="bg-black/60 px-2 py-1 rounded border border-gray-600 text-gray-300">
-                    MODE: SOUND MONITOR
-                </div>
-                <div class="bg-black/60 px-2 py-1 rounded border border-gray-600 text-gray-300">
-                    TEMP: <span class="text-cyan-400">SENSOR REQUIRED</span>
-                </div>
-            </div>
+            <button id="open-controls" class="panel-toggle" type="button" aria-controls="inspection-panel" aria-expanded="false">☰ Controls</button>
         </div>
 
         <!-- Center Crosshair Target (Drawn via Canvas, but here for reference if needed) -->
@@ -149,7 +145,7 @@
         <!-- Bottom HUD -->
         <div class="w-full flex gap-3 items-end">
             <!-- Spectrum -->
-            <div class="hud-element rounded-sm p-3 mb-2 flex-grow border-b-4 border-b-cyan-500 shadow-lg">
+            <div class="hud-element spectrum-box rounded-sm p-3 mb-2 flex-grow border-b-4 border-b-cyan-500 shadow-lg">
                 <div class="text-[10px] text-gray-400 font-mono mb-1 flex justify-between">
                     <span>PHONE MIC SPECTRUM (NOT ULTRASOUND)</span>
                     <span class="text-cyan-400 font-bold" id="freq-peak">SCANNING...</span>
@@ -167,8 +163,8 @@
         </div>
     </div>
 
-    <section class="inspect-panel" aria-label="Sound inspection">
-       <div class="row"><strong>SOUND INSPECTION</strong><small>· Phone microphone</small><button id="stop-btn" type="button">Stop</button></div>
+    <section id="inspection-panel" class="inspect-panel" aria-label="Sound inspection controls" hidden>
+       <div class="panel-header"><strong>SOUND INSPECTION</strong><button id="close-controls" type="button" aria-label="Close controls">Close ✕</button></div><div class="row"><small>Phone microphone</small><button id="stop-btn" type="button">Stop monitoring</button></div>
        <label>Mode <select id="sound-mode"><option value="hiss">Hiss focus (above 2 kHz)</option><option value="all">All sounds</option></select></label>
        <label>Display sensitivity (visual scale only): <span id="sens-label">1.0</span>× <input id="sensitivity" type="range" min="1" max="5" step="0.5" value="1"></label>
        <div class="row"><span>Display: <b class="stat" id="meter">0%</b></span><span>Peak: <b class="stat" id="peak">—</b></span><button id="reset-peak">Reset peak</button></div>
@@ -203,6 +199,14 @@
         let filter, latestDb = null, peakDb = null, basePower = null, calibration = null;
         const byId = id => document.getElementById(id);
         const notice = msg => { byId('notice').textContent = msg; };
+        function setControls(open) {
+            byId('inspection-panel').hidden = !open;
+            byId('open-controls').setAttribute('aria-expanded', String(open));
+            if (open) byId('close-controls').focus(); else byId('open-controls').focus();
+        }
+        byId('open-controls').addEventListener('click', () => setControls(true));
+        byId('close-controls').addEventListener('click', () => setControls(false));
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !byId('inspection-panel').hidden) setControls(false); });
         function clearBaseline() { basePower = null; calibration = null; byId('calibrate').disabled = false; byId('baseline').textContent = 'Not calibrated'; }
         function modeChanged() {
             if (filter && audioContext) filter.frequency.value = byId('sound-mode').value === 'hiss' ? Math.min(2000, audioContext.sampleRate * 0.4) : 10;
@@ -217,7 +221,7 @@
             byId('calibrate').disabled = true; byId('baseline').textContent = 'Measuring background for 3 seconds...'; notice('');
         });
         byId('stop-btn').addEventListener('click', async () => {
-            isRunning = false; clearBaseline(); latestDb = peakDb = null;
+            isRunning = false; setControls(false); clearBaseline(); latestDb = peakDb = null;
             [activeStream, cameraStream].forEach(stream => stream?.getTracks().forEach(track => track.stop()));
             activeStream = cameraStream = null; video.srcObject = null;
             if (audioContext) await audioContext.close(); audioContext = null;
