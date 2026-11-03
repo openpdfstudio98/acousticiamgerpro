@@ -147,7 +147,7 @@
             <!-- Spectrum -->
             <div class="hud-element spectrum-box rounded-sm p-3 mb-2 flex-grow border-b-4 border-b-cyan-500 shadow-lg">
                 <div class="text-[10px] text-gray-400 font-mono mb-1 flex justify-between">
-                    <span>PHONE MIC SPECTRUM (NOT ULTRASOUND)</span>
+                    <span>PHONE MIC SPECTRUM</span>
                     <span class="text-cyan-400 font-bold" id="freq-peak">SCANNING...</span>
                 </div>
                 <!-- Spectrum Canvas -->
@@ -165,7 +165,13 @@
 
     <section id="inspection-panel" class="inspect-panel" aria-label="Sound inspection controls" hidden>
        <div class="panel-header"><strong>SOUND INSPECTION</strong><button id="close-controls" type="button" aria-label="Close controls">Close ✕</button></div><div class="row"><small>Phone microphone</small><button id="stop-btn" type="button">Stop monitoring</button></div>
-       <label>Mode <select id="sound-mode"><option value="hiss">Hiss focus (above 2 kHz)</option><option value="all">All sounds</option></select></label>
+       <label>Frequency range <select id="sound-mode"><option value="hiss">Hiss focus · 2 kHz to device limit</option><option value="all">Full microphone range</option><option value="custom">Custom range</option></select></label>
+       <div id="frequency-custom" hidden>
+         <label>Low cutoff: <span id="low-value">2000</span> Hz <input id="frequency-low" type="range" min="100" max="19000" step="100" value="2000"></label>
+         <label>High cutoff: <span id="high-value">20000</span> Hz <input id="frequency-high" type="range" min="200" max="20000" step="100" value="20000"></label>
+       </div>
+       <small id="range-label">Actual available range depends on your microphone and browser.</small>
+       <details><summary>Ultrasound &amp; image modes</summary><small>Ultrasound and single-source, multiple-source or hologram maps need compatible external hardware and a supported integration. Phone microphone alone cannot locate sound sources.</small></details>
        <label>Display sensitivity (visual scale only): <span id="sens-label">1.0</span>× <input id="sensitivity" type="range" min="1" max="5" step="0.5" value="1"></label>
        <div class="row"><span>Display: <b class="stat" id="meter">0%</b></span><span>Peak: <b class="stat" id="peak">—</b></span><button id="reset-peak">Reset peak</button></div>
        <div class="row"><button id="calibrate">Calibrate background</button><span id="baseline">Not calibrated</span></div>
@@ -196,7 +202,7 @@
         let dataArray;
         let frequencyData;
         let isRunning = false, activeStream = null, cameraStream = null;
-        let filter, latestDb = null, peakDb = null, basePower = null, calibration = null;
+        let filter, lowpass, latestDb = null, peakDb = null, basePower = null, calibration = null;
         const byId = id => document.getElementById(id);
         const notice = msg => { byId('notice').textContent = msg; };
         function setControls(open) {
@@ -208,11 +214,28 @@
         byId('close-controls').addEventListener('click', () => setControls(false));
         document.addEventListener('keydown', e => { if (e.key === 'Escape' && !byId('inspection-panel').hidden) setControls(false); });
         function clearBaseline() { basePower = null; calibration = null; byId('calibrate').disabled = false; byId('baseline').textContent = 'Not calibrated'; }
-        function modeChanged() {
-            if (filter && audioContext) filter.frequency.value = byId('sound-mode').value === 'hiss' ? Math.min(2000, audioContext.sampleRate * 0.4) : 10;
+        function modeChanged(changed) {
+            const mode=byId('sound-mode').value;
+            byId('frequency-custom').hidden = mode !== 'custom';
+            if (!audioContext || !filter || !lowpass) return;
+            // Sampling rate sets an upper theoretical limit, not microphone sensitivity.
+            const maxHz=Math.floor(Math.min(20000, audioContext.sampleRate / 2 * 0.9) / 100) * 100;
+            const low=byId('frequency-low'), high=byId('frequency-high');
+            low.max=String(maxHz-100); high.max=String(maxHz);
+            let lo=Math.max(100,Math.min(Number(low.value),maxHz-100));
+            let hi=Math.max(200,Math.min(Number(high.value),maxHz));
+            if (lo >= hi) { if (changed === 'high') lo=Math.max(100,hi-100); else hi=Math.min(maxHz,lo+100); }
+            low.value=String(lo); high.value=String(hi);
+            byId('low-value').textContent=String(lo); byId('high-value').textContent=String(hi);
+            const selectedLow=mode === 'all' ? 10 : mode === 'hiss' ? Math.min(2000,maxHz-100) : lo;
+            const selectedHigh=mode === 'custom' ? hi : maxHz;
+            filter.frequency.value=selectedLow; lowpass.frequency.value=selectedHigh;
+            byId('range-label').textContent=`Filter: ${selectedLow}–${selectedHigh} Hz. Actual microphone response varies. No ultrasonic or directional detection.`;
             clearBaseline(); peakDb = null; byId('peak').textContent = '—';
         }
-        byId('sound-mode').addEventListener('change', modeChanged);
+        byId('sound-mode').addEventListener('change', () => modeChanged());
+        byId('frequency-low').addEventListener('input', () => modeChanged('low'));
+        byId('frequency-high').addEventListener('input', () => modeChanged('high'));
         byId('sensitivity').addEventListener('input', () => byId('sens-label').textContent = Number(byId('sensitivity').value).toFixed(1));
         byId('reset-peak').addEventListener('click', () => { peakDb = null; byId('peak').textContent = '—'; });
         byId('calibrate').addEventListener('click', () => {
@@ -245,7 +268,7 @@
             if (!isRunning || latestDb === null) return notice('Start monitoring first.');
             let photo = null;
             if (video.videoWidth) { const canvas=document.createElement('canvas'); canvas.width=640; canvas.height=Math.round(640 * video.videoHeight / video.videoWidth); canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height); photo=canvas.toDataURL('image/jpeg',.65); }
-            const record={id:Date.now(), time:new Date().toLocaleString('en-GB'), note:byId('note').value.trim() || 'No notes', mode:byId('sound-mode').value === 'hiss' ? 'Hiss focus' : 'All sounds', level:latestDb.toFixed(1), peak:peakDb === null ? '—' : peakDb.toFixed(1), background:basePower === null ? 'not calibrated' : (10*Math.log10(Math.max(basePower,1e-10))).toFixed(1)+' dBFS', photo};
+            const record={id:Date.now(), time:new Date().toLocaleString('en-GB'), note:byId('note').value.trim() || 'No notes', mode:byId('sound-mode').value === 'hiss' ? 'Hiss focus' : byId('sound-mode').value === 'custom' ? `Custom ${byId('frequency-low').value}–${byId('frequency-high').value} Hz` : 'All sounds', level:latestDb.toFixed(1), peak:peakDb === null ? '—' : peakDb.toFixed(1), background:basePower === null ? 'not calibrated' : (10*Math.log10(Math.max(basePower,1e-10))).toFixed(1)+' dBFS', photo};
             try { const all=loadRecords(); all.unshift(record); localStorage.setItem(recordKey, JSON.stringify(all)); notice('Inspection saved in this browser on this device.'); if (!byId('records').hidden) displayRecords(); } catch { notice('Storage is full or unavailable. Download photos and delete old records.'); }
         };
         
@@ -284,7 +307,8 @@
                 analyser.fftSize = 512;
                 analyser.smoothingTimeConstant = 0.8;
                 filter = audioContext.createBiquadFilter(); filter.type = 'highpass'; filter.Q.value = 0.707;
-                microphone.connect(filter); filter.connect(analyser); modeChanged();
+                lowpass = audioContext.createBiquadFilter(); lowpass.type = 'lowpass'; lowpass.Q.value = 0.707;
+                microphone.connect(filter); filter.connect(lowpass); lowpass.connect(analyser); modeChanged();
                 await audioContext.resume();
 
                 dataArray = new Float32Array(analyser.fftSize);
