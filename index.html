@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TD2-E Simulated Acoustic Imager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Acoustic Imager Pro — Sound Monitor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -91,6 +91,7 @@
     
         .inspect-panel {position:absolute;z-index:20;left:10px;right:10px;top:125px;max-width:480px;margin:auto;background:rgba(5,15,22,.93);border:1px solid #276575;border-radius:12px;padding:12px;color:white;font:13px system-ui;max-height:calc(100dvh - 225px);overflow:auto;touch-action:pan-y}
         .inspect-panel button,.inspect-panel select,.inspect-panel input {background:#16323e;color:white;border:1px solid #44717e;border-radius:6px;padding:7px;min-height:36px}
+        .inspect-panel {overscroll-behavior:contain; max-height:calc(100dvh - 230px)}
         .inspect-panel button:disabled {opacity:.5}.inspect-panel label {display:block;margin:8px 0}.inspect-panel input[type=range]{width:100%;padding:0}.inspect-panel .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.inspect-panel .stat{color:#7be8ec;font-weight:700}.inspect-panel small{color:#b9cbd2}.inspect-panel input[type=text]{width:100%;box-sizing:border-box}.inspect-panel .record{border-top:1px solid #41606a;padding:8px 0;overflow-wrap:anywhere}.inspect-panel img{max-width:100%;max-height:120px}
     </style>
 </head>
@@ -100,9 +101,9 @@
     <div id="start-screen">
         <div class="text-center p-6 max-w-md">
             <h1 class="text-3xl font-bold text-cyan-400 mb-2">Acoustic Imager Pro</h1>
-            <p class="text-gray-400 mb-8 text-sm">Pantau bunyi mikrofon bersama paparan kamera. Lokasi kebocoran, kadar L/min dan suhu memerlukan sensor luaran. Bunyi kuat tidak semestinya kebocoran. Benarkan akses kamera dan mikrofon.</p>
+            <p class="text-gray-400 mb-8 text-sm">Compare sound picked up by your microphone while inspecting equipment. The optional camera helps document findings. A louder sound does not confirm a leak.</p>
             <button id="start-btn" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-full shadow-[0_0_15px_rgba(8,145,178,0.5)] transition-all">
-                Mulakan Imbasan
+                Start monitoring
             </button>
             <p id="error-msg" class="text-red-400 mt-4 text-sm hidden"></p>
         </div>
@@ -114,7 +115,7 @@
     
     <!-- Added UI Visuals -->
     <div class="scanlines"></div>
-    <div class="crosshair-center"></div>
+    
 
     <div class="hud-container p-4">
         <!-- Top HUD -->
@@ -131,8 +132,8 @@
             
             <div class="flex flex-col items-end gap-2 font-mono text-[10px] sm:text-xs">
                 <div class="bg-black/60 px-2 py-1 rounded border border-gray-600 text-green-400 flex items-center gap-2">
-                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> REC
-                    <span class="text-white ml-2">LIVE</span>
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> LIVE
+                    <span class="text-white ml-2">MONITORING</span>
                 </div>
                 <div class="bg-black/60 px-2 py-1 rounded border border-gray-600 text-gray-300">
                     MODE: SOUND MONITOR
@@ -147,16 +148,6 @@
         
         <!-- Bottom HUD -->
         <div class="w-full flex gap-3 items-end">
-            <!-- Parameters -->
-            <div class="flex flex-col gap-2 mb-2">
-                <button id="palette-btn" class="hud-element p-2 rounded w-12 h-12 flex items-center justify-center hover:bg-white/20 transition text-xl border-cyan-500/50" title="Tukar Palet Warna">
-                    🎨
-                </button>
-                <button disabled title="Zoom tidak disokong" class="hud-element p-2 rounded w-12 h-12 flex items-center justify-center opacity-50 text-xs font-bold font-mono border-cyan-500/50">
-                    1X
-                </button>
-            </div>
-
             <!-- Spectrum -->
             <div class="hud-element rounded-sm p-3 mb-2 flex-grow border-b-4 border-b-cyan-500 shadow-lg">
                 <div class="text-[10px] text-gray-400 font-mono mb-1 flex justify-between">
@@ -169,23 +160,23 @@
             
             <!-- Capture Button -->
             <div class="flex justify-center pb-2">
-                <button id="capture-btn" title="Simpan gambar kamera" class="hud-element rounded-full w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center border-4 border-gray-400 hover:border-cyan-400 transition-all group">
+                <button id="capture-btn" title="Save camera photo" class="hud-element rounded-full w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center border-4 border-gray-400 hover:border-cyan-400 transition-all group">
                     <div class="w-10 h-10 sm:w-12 sm:h-12 bg-red-600 group-hover:bg-red-500 rounded-full shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]"></div>
                 </button>
             </div>
         </div>
     </div>
 
-    <section class="inspect-panel" aria-label="Pemeriksaan bunyi">
-       <div class="row"><strong>PEMERIKSAAN BUNYI</strong><small>· Telefon sahaja</small></div>
-       <label>Mod <select id="sound-mode"><option value="hiss">Fokus desisan (atas 2 kHz)</option><option value="all">Semua bunyi</option></select></label>
-       <label>Sensitivity paparan: <span id="sens-label">1.0</span>× <input id="sensitivity" type="range" min="1" max="5" step="0.5" value="1"></label>
-       <div class="row"><span>Paparan: <b class="stat" id="meter">0%</b></span><span>Puncak: <b class="stat" id="peak">—</b></span><button id="reset-peak">Reset puncak</button></div>
-       <div class="row"><button id="calibrate">Kalibrasi 3 saat</button><span id="baseline">Belum dikalibrasi</span></div>
-       <div id="comparison">Perbandingan: —</div>
-       <small>Bunyi meningkat bukan pengesahan kebocoran. Ini bukan ukuran dB SPL, ultrasonik, lokasi atau suhu.</small>
-       <label>Lokasi / nota <input id="note" type="text" maxlength="150" placeholder="Contoh: sambungan paip 2"></label>
-       <div class="row"><button id="save-record">Simpan gambar & rekod</button><button id="show-records">Rekod tersimpan</button></div>
+    <section class="inspect-panel" aria-label="Sound inspection">
+       <div class="row"><strong>SOUND INSPECTION</strong><small>· Phone microphone</small><button id="stop-btn" type="button">Stop</button></div>
+       <label>Mode <select id="sound-mode"><option value="hiss">Hiss focus (above 2 kHz)</option><option value="all">All sounds</option></select></label>
+       <label>Display sensitivity (visual scale only): <span id="sens-label">1.0</span>× <input id="sensitivity" type="range" min="1" max="5" step="0.5" value="1"></label>
+       <div class="row"><span>Display: <b class="stat" id="meter">0%</b></span><span>Peak: <b class="stat" id="peak">—</b></span><button id="reset-peak">Reset peak</button></div>
+       <div class="row"><button id="calibrate">Calibrate background</button><span id="baseline">Not calibrated</span></div>
+       <div id="comparison">Comparison: —</div>
+       <small>An increase in sound does not confirm a leak. This does not measure calibrated sound pressure, ultrasound, leak location, flow rate or temperature.</small>
+       <label>Location / notes <input id="note" type="text" maxlength="150" placeholder="e.g. pipe joint 2"></label>
+       <div class="row"><button id="save-record">Save inspection</button><button id="show-records">Saved inspections</button></div>
        <div id="records" hidden></div><div id="notice" role="status"></div>
     </section>
     <script>
@@ -200,7 +191,6 @@
         const spectrumCtx = spectrumCanvas.getContext('2d');
         const dbDisplay = document.getElementById('db-display');
         const freqPeak = document.getElementById('freq-peak');
-        const paletteBtn = document.getElementById('palette-btn');
         const leakRateDisplay = document.getElementById('leak-rate');
 
         // Audio & State Variables
@@ -209,11 +199,11 @@
         let microphone;
         let dataArray;
         let frequencyData;
-        let isRunning = false;
+        let isRunning = false, activeStream = null, cameraStream = null;
         let filter, latestDb = null, peakDb = null, basePower = null, calibration = null;
         const byId = id => document.getElementById(id);
         const notice = msg => { byId('notice').textContent = msg; };
-        function clearBaseline() { basePower = null; calibration = null; byId('calibrate').disabled = false; byId('baseline').textContent = 'Belum dikalibrasi'; }
+        function clearBaseline() { basePower = null; calibration = null; byId('calibrate').disabled = false; byId('baseline').textContent = 'Not calibrated'; }
         function modeChanged() {
             if (filter && audioContext) filter.frequency.value = byId('sound-mode').value === 'hiss' ? Math.min(2000, audioContext.sampleRate * 0.4) : 10;
             clearBaseline(); peakDb = null; byId('peak').textContent = '—';
@@ -222,89 +212,45 @@
         byId('sensitivity').addEventListener('input', () => byId('sens-label').textContent = Number(byId('sensitivity').value).toFixed(1));
         byId('reset-peak').addEventListener('click', () => { peakDb = null; byId('peak').textContent = '—'; });
         byId('calibrate').addEventListener('click', () => {
-            if (!isRunning) return notice('Mulakan imbasan dahulu.');
+            if (!isRunning) return notice('Start monitoring first.');
             calibration = { end: performance.now() + 3000, sum: 0, count: 0 };
-            byId('calibrate').disabled = true; byId('baseline').textContent = 'Mengambil bacaan selama 3 saat...'; notice('');
+            byId('calibrate').disabled = true; byId('baseline').textContent = 'Measuring background for 3 seconds...'; notice('');
+        });
+        byId('stop-btn').addEventListener('click', async () => {
+            isRunning = false; clearBaseline(); latestDb = peakDb = null;
+            [activeStream, cameraStream].forEach(stream => stream?.getTracks().forEach(track => track.stop()));
+            activeStream = cameraStream = null; video.srcObject = null;
+            if (audioContext) await audioContext.close(); audioContext = null;
+            startScreen.style.display = 'flex'; startBtn.disabled = false; startBtn.textContent = 'Start monitoring';
         });
         const recordKey = 'acoustic_inspection_records_v1';
-        function loadRecords() { try { return JSON.parse(localStorage.getItem(recordKey) || '[]'); } catch { return []; } }
+        function loadRecords() { try { const data=JSON.parse(localStorage.getItem(recordKey) || '[]'); return Array.isArray(data) ? data : []; } catch { return []; } }
         function displayRecords() {
             const root = byId('records'); root.replaceChildren(); const list = loadRecords();
-            if (!list.length) { root.textContent = 'Belum ada rekod.'; return; }
+            if (!list.length) { root.textContent = 'No saved inspections.'; return; }
             list.forEach((r,i) => {
                 const card = document.createElement('div'); card.className = 'record';
-                const info = document.createElement('div'); info.textContent = `${r.time} · ${r.note} · ${r.mode} · ${r.level} dBFS · puncak ${r.peak} dBFS · latar ${r.background}`; card.append(info);
-                if (r.photo) { const img = document.createElement('img'); img.src = r.photo; img.alt = 'Gambar pemeriksaan'; card.append(img); }
-                const download = document.createElement('a'); download.href = r.photo; download.download = `pemeriksaan-${r.id}.jpg`; download.textContent = 'Muat turun gambar'; download.style.cssText = 'display:inline-block;color:#74e5ed;margin-right:12px'; card.append(download);
-                const del = document.createElement('button'); del.textContent = 'Padam'; del.onclick = () => { const all=loadRecords(); all.splice(i,1); localStorage.setItem(recordKey, JSON.stringify(all)); displayRecords(); }; card.append(del); root.append(card);
+                const info = document.createElement('div'); info.textContent = `${r.time} · ${r.note} · ${r.mode} · ${r.level} dBFS · peak ${r.peak} dBFS · background ${r.background}`; card.append(info);
+                if (r.photo) { const img = document.createElement('img'); img.src = r.photo; img.alt = 'Inspection photo'; card.append(img); }
+                if (r.photo) { const download = document.createElement('a'); download.href = r.photo; download.download = `inspection-${r.id}.jpg`; download.textContent = 'Download photo'; download.style.cssText = 'display:inline-block;color:#74e5ed;margin-right:12px'; card.append(download); }
+                const del = document.createElement('button'); del.textContent = 'Delete'; del.onclick = () => { const all=loadRecords(); all.splice(i,1); localStorage.setItem(recordKey, JSON.stringify(all)); displayRecords(); }; card.append(del); root.append(card);
             });
         }
         byId('show-records').onclick = () => { const root=byId('records'); root.hidden = !root.hidden; if (!root.hidden) displayRecords(); };
         byId('save-record').onclick = () => {
-            if (!isRunning || latestDb === null || !video.videoWidth) return notice('Mulakan imbasan dan tunggu kamera dahulu.');
-            const canvas=document.createElement('canvas'); canvas.width=640; canvas.height=Math.round(640 * video.videoHeight / video.videoWidth); canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
-            const record={id:Date.now(), time:new Date().toLocaleString('ms-MY'), note:byId('note').value.trim() || 'Tiada nota', mode:byId('sound-mode').value === 'hiss' ? 'Fokus desisan' : 'Semua bunyi', level:latestDb.toFixed(1), peak:peakDb === null ? '—' : peakDb.toFixed(1), background:basePower === null ? 'belum kalibrasi' : (10*Math.log10(Math.max(basePower,1e-10))).toFixed(1)+' dBFS', photo:canvas.toDataURL('image/jpeg',.65)};
-            try { const all=loadRecords(); all.unshift(record); localStorage.setItem(recordKey, JSON.stringify(all)); notice('Rekod disimpan pada browser telefon ini.'); if (!byId('records').hidden) displayRecords(); } catch { notice('Ruang simpanan tidak mencukupi atau tidak tersedia. Muat turun gambar dan padam rekod lama.'); }
+            if (!isRunning || latestDb === null) return notice('Start monitoring first.');
+            let photo = null;
+            if (video.videoWidth) { const canvas=document.createElement('canvas'); canvas.width=640; canvas.height=Math.round(640 * video.videoHeight / video.videoWidth); canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height); photo=canvas.toDataURL('image/jpeg',.65); }
+            const record={id:Date.now(), time:new Date().toLocaleString('en-GB'), note:byId('note').value.trim() || 'No notes', mode:byId('sound-mode').value === 'hiss' ? 'Hiss focus' : 'All sounds', level:latestDb.toFixed(1), peak:peakDb === null ? '—' : peakDb.toFixed(1), background:basePower === null ? 'not calibrated' : (10*Math.log10(Math.max(basePower,1e-10))).toFixed(1)+' dBFS', photo};
+            try { const all=loadRecords(); all.unshift(record); localStorage.setItem(recordKey, JSON.stringify(all)); notice('Inspection saved in this browser on this device.'); if (!byId('records').hidden) displayRecords(); } catch { notice('Storage is full or unavailable. Download photos and delete old records.'); }
         };
         
-        // Heatmap Simulation Variables
-        let hsX = window.innerWidth / 2;
-        let hsY = window.innerHeight / 2;
-        let targetHsX = hsX;
-        let targetHsY = hsY;
-        let palettes = ['iron', 'rainbow', 'hot'];
-        let currentPaletteIndex = 0;
-        let smoothedVolume = 0;
-
-        // Resize Canvas
-        function resizeCanvas() {
-            overlayCanvas.width = window.innerWidth;
-            overlayCanvas.height = window.innerHeight;
-            spectrumCanvas.width = spectrumCanvas.clientWidth;
-            spectrumCanvas.height = spectrumCanvas.clientHeight;
-        }
+        function resizeCanvas() { spectrumCanvas.width = spectrumCanvas.clientWidth; spectrumCanvas.height = spectrumCanvas.clientHeight; }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Palette definitions
-        function getGradientColors(palette) {
-            switch(palette) {
-                case 'iron':
-                    return [
-                        { offset: 0, color: 'rgba(255, 255, 255, 0.9)' },
-                        { offset: 0.2, color: 'rgba(255, 255, 0, 0.8)' },
-                        { offset: 0.5, color: 'rgba(255, 0, 0, 0.6)' },
-                        { offset: 0.8, color: 'rgba(128, 0, 128, 0.3)' },
-                        { offset: 1, color: 'rgba(0, 0, 0, 0)' }
-                    ];
-                case 'rainbow':
-                    return [
-                        { offset: 0, color: 'rgba(255, 0, 0, 0.8)' },
-                        { offset: 0.3, color: 'rgba(255, 255, 0, 0.6)' },
-                        { offset: 0.6, color: 'rgba(0, 255, 0, 0.4)' },
-                        { offset: 0.8, color: 'rgba(0, 0, 255, 0.2)' },
-                        { offset: 1, color: 'rgba(0, 0, 0, 0)' }
-                    ];
-                case 'hot':
-                    return [
-                        { offset: 0, color: 'rgba(255, 255, 255, 0.9)' },
-                        { offset: 0.4, color: 'rgba(255, 200, 0, 0.7)' },
-                        { offset: 0.7, color: 'rgba(200, 0, 0, 0.4)' },
-                        { offset: 1, color: 'rgba(0, 0, 0, 0)' }
-                    ];
-            }
-        }
-
-        // Palette toggle
-        paletteBtn.addEventListener('click', () => {
-            currentPaletteIndex = (currentPaletteIndex + 1) % palettes.length;
-            // Provide small visual feedback
-            paletteBtn.style.transform = 'scale(0.9)';
-            setTimeout(() => paletteBtn.style.transform = 'scale(1)', 100);
-        });
-
         document.getElementById('capture-btn').addEventListener('click', () => {
-            if (!video.videoWidth) return;
+            if (!video.videoWidth) return notice('Camera is unavailable.');
             const c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight;
             c.getContext('2d').drawImage(video, 0, 0);
             const link = document.createElement('a'); link.download = 'inspection-' + Date.now() + '.jpg'; link.href = c.toDataURL('image/jpeg', 0.9); link.click();
@@ -314,15 +260,17 @@
         startBtn.addEventListener('click', async () => {
             try {
                 errorMsg.classList.add('hidden');
-                startBtn.innerText = "Mengakses...";
+                startBtn.disabled = true; startBtn.innerText = "Starting...";
 
                 // 1. Get Camera (Prefer back camera)
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' },
-                    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-                });
-
-                video.srcObject = stream;
+                if (!navigator.mediaDevices?.getUserMedia) throw new Error('unavailable');
+                const stream = await navigator.mediaDevices.getUserMedia({audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }});
+                activeStream = stream;
+                try {
+                    const camera = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: 'environment'}}});
+                    cameraStream = camera; video.srcObject = camera;
+                    video.play().catch(() => {});
+                } catch { notice('Camera unavailable. Audio monitoring and notes are still available.'); }
 
                 // 2. Setup Audio
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -335,7 +283,7 @@
                 microphone.connect(filter); filter.connect(analyser); modeChanged();
                 await audioContext.resume();
 
-                dataArray = new Uint8Array(analyser.fftSize);
+                dataArray = new Float32Array(analyser.fftSize);
                 frequencyData = new Uint8Array(analyser.frequencyBinCount);
 
                 // Start App
@@ -350,28 +298,20 @@
 
             } catch (err) {
                 console.error(err);
-                startBtn.innerText = "Mulakan Imbasan";
-                errorMsg.innerText = "Ralat: Sila pastikan anda membenarkan akses Kamera & Mikrofon (Gunakan HTTPS).";
+                [activeStream, cameraStream].forEach(stream => stream?.getTracks().forEach(track => track.stop())); activeStream = cameraStream = null;
+                if (audioContext) { audioContext.close().catch(() => {}); audioContext = null; }
+                startBtn.disabled = false;
+                startBtn.innerText = "Start monitoring";
+                errorMsg.innerText = "Microphone access failed. Allow permission and use HTTPS or localhost.";
                 errorMsg.classList.remove('hidden');
             }
         });
 
-        // Simulates the acoustic hotspot moving around slightly, seeking loudest noise
-        function updateHeatmapTarget() {
-            if (!isRunning) return;
-            // If it's quiet, roam aimlessly around the screen
-            if (smoothedVolume < 45) {
-                const padding = window.innerWidth * 0.2;
-                targetHsX = padding + Math.random() * (overlayCanvas.width - padding * 2);
-                targetHsY = window.innerHeight * 0.3 + Math.random() * (overlayCanvas.height * 0.4);
-            }
-        }
-
         function calculateVolume() {
-            analyser.getByteTimeDomainData(dataArray);
+            analyser.getFloatTimeDomainData(dataArray);
             let sum = 0;
             for (let i = 0; i < dataArray.length; i++) {
-                const val = (dataArray[i] - 128) / 128;
+                const val = dataArray[i];
                 sum += val * val;
             }
             const rms = Math.sqrt(sum / dataArray.length);
@@ -394,11 +334,10 @@
                 calibration.sum += Math.pow(10, currentDb / 10); calibration.count++;
                 if (performance.now() >= calibration.end) {
                     basePower = calibration.sum / Math.max(1, calibration.count); calibration = null; byId('calibrate').disabled = false;
-                    byId('baseline').textContent = 'Latar: ' + (10 * Math.log10(Math.max(basePower, 1e-10))).toFixed(1) + ' dBFS';
+                    byId('baseline').textContent = 'Background: ' + (10 * Math.log10(Math.max(basePower, 1e-10))).toFixed(1) + ' dBFS';
                 }
             }
-            byId('comparison').textContent = basePower === null ? 'Perbandingan: —' : 'Berbanding latar: ' + (currentDb - 10 * Math.log10(Math.max(basePower, 1e-10))).toFixed(1) + ' dB (relatif)';
-            smoothedVolume = currentDb;
+            byId('comparison').textContent = basePower === null ? 'Comparison: —' : 'Compared with background: ' + (currentDb - 10 * Math.log10(Math.max(basePower, 1e-10))).toFixed(1) + ' dB (relative)';
             dbDisplay.innerText = currentDb.toFixed(1);
 
             // --- 3. Spectrum Analyzer & Real-time Frequency Mapping ---
